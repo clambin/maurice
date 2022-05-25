@@ -1,0 +1,12 @@
+FROM alpine
+
+WORKDIR /app
+
+ARG TARGETOS
+ARG TARGETARCH
+
+COPY bld/maurice-$TARGETOS-$TARGETARCH /app/maurice
+
+EXPOSE 8080
+ENTRYPOINT ["/app/maurice"]
+CMD []
