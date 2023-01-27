@@ -6,11 +6,11 @@ import (
 	"github.com/containrrr/shoutrrr/pkg/types"
 )
 
-type Notifier struct {
+type ShoutrrrNotifier struct {
 	router *router.ServiceRouter
 }
 
-func (n *Notifier) Send(title, message string) (errs []error) {
+func (n *ShoutrrrNotifier) Send(title, message string) []error {
 	if n.router == nil {
 		return []error{fmt.Errorf("notifier not initialized")}
 	}

@@ -4,37 +4,58 @@ import (
 	"context"
 	"github.com/clambin/maurice/monitor"
 	"github.com/clambin/maurice/version"
-	"github.com/xonvanetta/shutdown/pkg/shutdown"
-	"gopkg.in/alecthomas/kingpin.v2"
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+	"golang.org/x/exp/slog"
 	"os"
-	"path/filepath"
+	"os/signal"
+	"syscall"
+)
+
+var (
+	cmd = &cobra.Command{
+		Use:     "maurice",
+		Short:   "monitors whereismaurice.com and notifies changes via Slack",
+		Version: version.BuildVersion,
+		Run:     Main,
+	}
 )
 
 func main() {
-	var (
-		debug       bool
-		notifierURL string
-	)
-
-	a := kingpin.New(filepath.Base(os.Args[0]), "maurice")
-	a.Version(version.BuildVersion)
-	a.HelpFlag.Short('h')
-	a.VersionFlag.Short('v')
-	a.Flag("debug", "Log debug messages").BoolVar(&debug)
-	a.Flag("notifier", "Notification URL (shoutrrr format)").StringVar(&notifierURL)
-
-	_, err := a.Parse(os.Args[1:])
-	if err != nil {
-		a.Usage(os.Args[1:])
-		panic(err)
+	if err := cmd.Execute(); err != nil {
+		slog.Error("failed to start", err)
+		os.Exit(1)
 	}
+}
 
-	m := monitor.New(notifierURL)
+func Main(_ *cobra.Command, _ []string) {
+	m := monitor.New(viper.GetString("notifier"))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	go m.Run(ctx)
 
-	<-shutdown.Chan()
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
+	<-signals
+}
+
+func init() {
+	cobra.OnInitialize(initConfig)
+	cmd.Flags().StringP("notifier", "n", "", "Notifications URL (in ShoutRrr format)")
+	_ = cmd.MarkFlagRequired("notifier")
+	_ = viper.BindPFlag("notifier", cmd.Flags().Lookup("notifier"))
+}
+
+func initConfig() {
+	viper.AddConfigPath("/etc/maurice/")
+	viper.AddConfigPath("$HOME/.maurice")
+	viper.AddConfigPath(".")
+	viper.SetConfigName("config")
+
+	viper.SetEnvPrefix("MAURICE")
+	viper.AutomaticEnv()
+
+	_ = viper.ReadInConfig()
 }

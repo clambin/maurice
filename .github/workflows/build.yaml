@@ -4,13 +4,14 @@ on:
   push:
     branches:
       - master
+      - cobra
 
 jobs:
-  #test:
-  #  uses: clambin/workflows/.github/workflows/test.yaml@main
+  test:
+    uses: clambin/workflows/.github/workflows/test.yaml@main
   build:
-    #needs:
-    #  - test
+    needs:
+      - test
     uses: clambin/workflows/.github/workflows/build.yaml@main
     with:
       target: maurice

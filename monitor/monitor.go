@@ -3,8 +3,7 @@ package monitor
 import (
 	"context"
 	"github.com/containrrr/shoutrrr"
-	"github.com/containrrr/shoutrrr/pkg/router"
-	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/slog"
 	"time"
 )
 
@@ -14,45 +13,48 @@ type Server struct {
 	lastUpdate time.Time
 }
 
+type Notifier interface {
+	Send(title, message string) []error
+}
+
 func New(notifierURL string) *Server {
-	var r *router.ServiceRouter
+	s := Server{Tracker: Tracker{URL: MauriceURL}}
+
 	if notifierURL != "" {
-		var err error
-		r, err = shoutrrr.CreateSender(notifierURL)
+		router, err := shoutrrr.CreateSender(notifierURL)
 		if err != nil {
-			log.WithError(err).Error("unable to create notification sender. Ignoring.")
+			slog.Error("unable to create notification sender. Ignoring.", err)
 		}
+		s.Notifier = &ShoutrrrNotifier{router: router}
 	}
 
-	return &Server{
-		Notifier: Notifier{router: r},
-	}
+	return &s
 }
 
 func (s *Server) Run(ctx context.Context) {
-	s.check()
-
+	s.check(ctx)
 	interval := time.NewTicker(5 * time.Minute)
-	for running := true; running; {
+	defer interval.Stop()
+	for {
 		select {
 		case <-ctx.Done():
-			running = false
+			return
 		case <-interval.C:
-			s.check()
+			s.check(ctx)
 		}
 	}
 }
 
-func (s *Server) check() {
-	items, err := s.Tracker.Find()
+func (s *Server) check(ctx context.Context) {
+	items, err := s.Tracker.Find(ctx)
 	if err != nil {
-		log.WithError(err).Error("failed to check feed")
+		slog.Error("failed to check feed", err)
 		return
 	}
 	for _, item := range items {
 		if item.Timestamp.After(s.lastUpdate) {
 			_ = s.Send("Maurice is now at "+item.Map, "Selling: "+item.Selling+"\nhttps://whereismaurice.com")
-			log.Infof("Maurice is now at %s, selling: %s", item.Map, item.Selling)
+			slog.Info("Maurice found at new location", "location", item.Map)
 			s.lastUpdate = item.Timestamp
 		}
 	}
