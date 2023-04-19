@@ -36,9 +36,9 @@ func Main(_ *cobra.Command, _ []string) {
 
 	go m.Run(ctx)
 
-	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
-	<-signals
+	ctx, done := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
+	defer done()
+	<-ctx.Done()
 }
 
 func init() {
